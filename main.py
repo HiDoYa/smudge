@@ -27,8 +27,12 @@ list_cap = 3000
 color_change = 20
 del_col_cap = 10
 del_num_cap = 5
+color_inertia_chance = 4
+move_inertia_chance = 2
 
 # Init
+time_pass = 0
+mouse_pressed = False
 pxAr = pygame.PixelArray(sep_screen)
 px_list = []
 color_inertia = []
@@ -56,7 +60,7 @@ def color_drift(present_col, current_col):
             pos_col_change = 0
             neg_col_change = 0
 
-            color_dir = random.randint(-1, 2)
+            color_dir = random.randint(-1, 1 + color_inertia_chance)
             if color_dir >= 2:
                 color_dir = color_inertia[index][i]
                 
@@ -122,26 +126,42 @@ def set_new_pos(n):
     elif n == 3:
         return [current_pos[0], current_pos[1] - 1]
 
+def add_new_px(x, y):
+    pxAr[x, y] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+    px_list.append([x, y])
+    color_inertia.append([0, 0, 0])
+    move_inertia.append(random.randint(0, 3))
+    del_inertia.append(0)
+
 # Init random pixels
 for y in range(0, act_size[1]):
     for x in range(0, act_size[0]):
         if random.randint(0, emerge_chance_cap) > emerge_chance:
-            pxAr[x, y] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-
-            px_list.append([x, y])
-            color_inertia.append([0, 0, 0])
-            move_inertia.append(random.randint(0, 3))
-            del_inertia.append(0)
+            add_new_px(x, y)
 
 while not done:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             done = True
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pressed = True
+        elif event.type == pygame.MOUSEBUTTONUP:
+            mouse_pressed = False
 
     pressed = pygame.key.get_pressed()
+    time_pass += 1
 
-    if pressed[pygame.K_SPACE]:
-        start = True
+    if pressed[pygame.K_SPACE] and time_pass > 20:
+        start = not start
+        time_pass = 0
+
+    # Add new px
+    if mouse_pressed and time_pass > 10 and not start:
+        mouse_pos = pygame.mouse.get_pos()
+        add_new_px(int(mouse_pos[0] / disp_size[0] * act_size[0]), int(mouse_pos[1] / disp_size[1] * act_size[1]))
+        time_pass = 0
+
+
 
     if start:
         # For keeping track of changes
@@ -156,7 +176,7 @@ while not done:
 
                 # Pixel chooses random direction to move
                 # Higher likelihood to move in same direction
-                direction = random.randint(0, 5)
+                direction = random.randint(0, 3 + move_inertia_chance)
                 if direction >= 4:
                     direction = move_inertia[index]
 
