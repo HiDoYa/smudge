@@ -25,8 +25,17 @@ emerge_chance = 998
 emerge_chance_cap = 1000
 list_cap = 3000
 color_change = 20
+del_col_cap = 150
+del_num_cap = 5
 
-def color_drift(current_col, present_col):
+# Init
+pxAr = pygame.PixelArray(sep_screen)
+px_list = []
+color_inertia = []
+move_inertia = []
+del_inertia = []
+
+def color_drift(present_col):
     if present_col != BLACK and present_col != current_col:
         # Blend colors if collision
         for i in range(0, 3):
@@ -44,24 +53,56 @@ def color_drift(current_col, present_col):
             if current_col[i] < color_change:
                 current_col[i] = color_change
 
-            current_col[i] += random.randint(-color_change, color_change)
+            pos_col_change = 0
+            neg_col_change = 0
+
+            if color_inertia[index][i] == 0:
+                pos_col_change = color_change
+                neg_col_change = -color_change
+                color_inertia[index][i] = 0
+            elif random.randint(1, 4) > 2 - color_inertia[index][i]:
+                pos_col_change = color_change
+                color_inertia[index][i] = 1
+            else:
+                neg_col_change = -color_change
+                color_inertia[index][i] = -1
+
+            # Change color
+            current_col[i] += random.randint(neg_col_change, pos_col_change)
 
     return(current_col)
 
-def rm(removed, px_list_cp, current_pos):
+def rm(removed):
     if not removed:
         px_list_cp.remove(current_pos)
+        del color_inertia[index]
+        del move_inertia[index]
+        del del_inertia[index]
         return True
     return removed
 
-def set_new_px(n, removed, px_list_cp, current_pos):
+def set_new_px(n, removed):
     new_pos = set_new_pos(n)
     present_col = sep_screen.get_at(new_pos)
-    pxAr[new_pos[0], new_pos[1]] = color_drift(current_col, present_col)
+    pxAr[new_pos[0], new_pos[1]] = color_drift(present_col)
+
+    # Check for magnitude of color change
+    a = abs(present_col[0] - current_col[0])
+    b = abs(present_col[1] - current_col[1])
+    c = abs(present_col[2] - current_col[2])
+    mag_chg = (a * a + b * b + c * c) ** (1 / 3)
+
+    if mag_chg > del_col_cap:
+        del_inertia[index] = 0
+
     px_list_cp.append(new_pos)
-    removed = rm(removed, px_list_cp, current_pos)
-    # Set not_used and removed flags
-    return False, removed
+    color_inertia.append(color_inertia[index])
+    move_inertia.append(move_inertia[index])
+    del_inertia.append(del_inertia[index] + 1)
+
+    removed = rm(removed)
+    # Set removed flag
+    return removed
 
 def set_new_pos(n):
     if n == 0:
@@ -73,16 +114,16 @@ def set_new_pos(n):
     elif n == 3:
         return [current_pos[0], current_pos[1] - 1]
 
-# Init
-pxAr = pygame.PixelArray(sep_screen)
-px_list = []
-
 # Init random pixels
 for y in range(0, act_size[1]):
     for x in range(0, act_size[0]):
         if random.randint(0, emerge_chance_cap) > emerge_chance:
             pxAr[x, y] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+
             px_list.append([x, y])
+            color_inertia.append([0, 0, 0])
+            move_inertia.append(random.randint(0, 3))
+            del_inertia.append(0)
 
 while not done:
     for event in pygame.event.get():
@@ -98,9 +139,8 @@ while not done:
         # For keeping track of changes
         px_list_cp = px_list[:]
         removed = False
-        not_used = True
 
-        for current_pos in px_list:
+        for index, current_pos in enumerate(px_list):
             current_col = sep_screen.get_at(current_pos)
 
             # Pixel decides to move
@@ -109,7 +149,13 @@ while not done:
             if growth_flag:
 
                 # Pixel chooses random direction to move
-                direction = random.randint(0, 3)
+                # Higher likelihood to move in same direction
+                direction = random.randint(0, 5)
+                if direction >= 4:
+                    direction = move_inertia[index]
+
+                # Set move_inertia
+                move_inertia[index] = direction
 
                 # Pixel must be able to move in the direction
                 dir_flags = [current_pos[0] <= act_size[0] - 2,
@@ -120,18 +166,31 @@ while not done:
 
                 for i in range(0, 4):
                     if dir_flags[i] and direction == i:
-                        not_used, removed = set_new_px(i, removed, px_list_cp, current_pos)
+                        removed = set_new_px(i, removed)
 
-                # If no movement, just remove
-                removed = rm(removed, px_list_cp, current_pos)
+                # If no movement, remove
+                removed = rm(removed)
 
-            if not_used and not removed:
-                px_list_cp.remove(current_pos)
+                # If del_inertia exceeds del_num_cap, delete
+                if del_inertia[index] > del_num_cap:
+                    removed = rm(removed)
 
         px_list = px_list_cp[:]
 
+    # Shuffle all paralell lists simultaneously and delete the same elements
     if len(px_list) > list_cap:
-        random.shuffle(px_list)
+        shuffler = list(zip(px_list, color_inertia, move_inertia, del_inertia))
+        random.shuffle(shuffler)
+        px_list, color_inertia, move_inertia, del_inertia = zip(*shuffler)
+
+        px_list = list(px_list)
+        color_inertia = list(color_inertia)
+        move_inertia = list(move_inertia)
+        del_inertia = list(del_inertia)
+
+        del color_inertia[1:len(px_list) - list_cap]
+        del move_inertia[1:len(px_list) - list_cap]
+        del del_inertia[1:len(px_list) - list_cap]
         del px_list[1:len(px_list) - list_cap]
 
     # To scale image up
