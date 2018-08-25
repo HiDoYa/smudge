@@ -13,7 +13,7 @@ act_size = (80, 80)
 disp_size = (800, 800)
 screen = pygame.display.set_mode(disp_size)
 sep_screen = pygame.Surface(act_size)
-pygame.display.set_caption("Growth Art")
+pygame.display.set_caption("Smudge")
 clock = pygame.time.Clock()
 done = False
 start = False
@@ -25,7 +25,7 @@ emerge_chance = 998
 emerge_chance_cap = 1000
 list_cap = 3000
 color_change = 20
-del_col_cap = 150
+del_col_cap = 10
 del_num_cap = 5
 
 # Init
@@ -35,7 +35,7 @@ color_inertia = []
 move_inertia = []
 del_inertia = []
 
-def color_drift(present_col):
+def color_drift(present_col, current_col):
     if present_col != BLACK and present_col != current_col:
         # Blend colors if collision
         for i in range(0, 3):
@@ -56,14 +56,18 @@ def color_drift(present_col):
             pos_col_change = 0
             neg_col_change = 0
 
-            if color_inertia[index][i] == 0:
+            color_dir = random.randint(-1, 2)
+            if color_dir >= 2:
+                color_dir = color_inertia[index][i]
+                
+            if color_dir == 0:
                 pos_col_change = color_change
                 neg_col_change = -color_change
                 color_inertia[index][i] = 0
-            elif random.randint(1, 4) > 2 - color_inertia[index][i]:
+            elif color_dir == 1:
                 pos_col_change = color_change
                 color_inertia[index][i] = 1
-            else:
+            elif color_dir == -1:
                 neg_col_change = -color_change
                 color_inertia[index][i] = -1
 
@@ -83,14 +87,17 @@ def rm(removed):
 
 def set_new_px(n, removed):
     new_pos = set_new_pos(n)
+
+    current_col = sep_screen.get_at(current_pos)
     present_col = sep_screen.get_at(new_pos)
-    pxAr[new_pos[0], new_pos[1]] = color_drift(present_col)
+
+    pxAr[new_pos[0], new_pos[1]] = color_drift(present_col, current_col)
 
     # Check for magnitude of color change
-    a = abs(present_col[0] - current_col[0])
-    b = abs(present_col[1] - current_col[1])
-    c = abs(present_col[2] - current_col[2])
-    mag_chg = (a * a + b * b + c * c) ** (1 / 3)
+    a = present_col[0] - current_col[0]
+    b = present_col[1] - current_col[1]
+    c = present_col[2] - current_col[2]
+    mag_chg = math.sqrt(a * a + b * b + c * c)
 
     if mag_chg > del_col_cap:
         del_inertia[index] = 0
@@ -101,6 +108,7 @@ def set_new_px(n, removed):
     del_inertia.append(del_inertia[index] + 1)
 
     removed = rm(removed)
+
     # Set removed flag
     return removed
 
@@ -141,8 +149,6 @@ while not done:
         removed = False
 
         for index, current_pos in enumerate(px_list):
-            current_col = sep_screen.get_at(current_pos)
-
             # Pixel decides to move
             growth_flag = random.randint(0, growth_chance_cap) > growth_chance
 
