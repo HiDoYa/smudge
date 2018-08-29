@@ -133,11 +133,33 @@ def add_new_px(x, y):
     move_inertia.append(random.randint(0, 3))
     del_inertia.append(0)
 
+def full_restart():
+    for y in range(0, act_size[1]):
+        for x in range(0, act_size[0]):
+            pxAr[x, y] = (0, 0, 0)
+    restart()
+
+def restart():
+    px_list.clear()
+    color_inertia.clear()
+    move_inertia.clear()
+    del_inertia.clear()
+    init_px()
+
 # Init random pixels
-for y in range(0, act_size[1]):
-    for x in range(0, act_size[0]):
-        if random.randint(0, emerge_chance_cap) > emerge_chance:
-            add_new_px(x, y)
+def init_px():
+    for y in range(0, act_size[1]):
+        for x in range(0, act_size[0]):
+            if random.randint(0, emerge_chance_cap) > emerge_chance:
+                add_new_px(x, y)
+
+# Font
+text = pygame.font.SysFont("Gill Sans", 18)
+tx_0 = text.render("Press space to start/stop", False, WHITE)
+tx_1 = text.render("Press r to restart", False, WHITE)
+tx_2 = text.render("Press s for new points", False, WHITE)
+
+init_px()
 
 while not done:
     for event in pygame.event.get():
@@ -153,6 +175,16 @@ while not done:
 
     if pressed[pygame.K_SPACE] and time_pass > 20:
         start = not start
+        time_pass = 0
+
+    if pressed[pygame.K_r] and time_pass > 20:
+        full_restart()
+        start = False
+        time_pass = 0
+
+    if pressed[pygame.K_s] and time_pass > 20:
+        restart()
+        start = False
         time_pass = 0
 
     # Add new px
@@ -221,6 +253,11 @@ while not done:
 
     # To scale image up
     screen.blit(pygame.transform.scale(sep_screen, disp_size), (0, 0))
+    
+    pygame.draw.rect(screen, GRAY, (10, 5, 200, 70))
+    screen.blit(tx_0, (20, 10))
+    screen.blit(tx_1, (20, 30))
+    screen.blit(tx_2, (20, 50))
 
     pygame.display.flip()
 
